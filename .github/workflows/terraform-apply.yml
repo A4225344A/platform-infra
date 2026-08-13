@@ -1,0 +1,24 @@
+name: Terraform Apply
+on:
+  push:
+    branches: [main]
+    paths: ["modules/**", "*.tf"]
+  workflow_dispatch: {}   # 也允許在 GitHub 網頁上手動按按鈕觸發
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: production   # 對應準備 5.5 設定的核准機制
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::029099141993:role/platform-gha-apply
+          aws-region: ap-northeast-1
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform init
+      - run: terraform apply -auto-approve -var="alert_email=${{ vars.ALERT_EMAIL }}"
