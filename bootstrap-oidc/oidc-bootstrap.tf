@@ -95,9 +95,13 @@ resource "aws_iam_role_policy" "gha_apply_node_iam" {
     Statement = [{
       Effect = "Allow"
       Action = [
-        "iam:GetRole", "iam:CreateRole", "iam:DeleteRole", "iam:TagRole",
-        "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:ListAttachedRolePolicies",
-        "iam:GetInstanceProfile", "iam:CreateInstanceProfile", "iam:DeleteInstanceProfile",
+        # iam:Get*/iam:List* 涵蓋 GetRole、ListRolePolicies、ListAttachedRolePolicies、
+        # ListInstanceProfilesForRole、ListRoleTags 等 provider refresh 會用到的各種讀取動作,
+        # 一次開好避免之後每次 refresh 少一個權限就報一次 AccessDenied。
+        "iam:Get*", "iam:List*",
+        "iam:CreateRole", "iam:DeleteRole", "iam:TagRole", "iam:UntagRole",
+        "iam:AttachRolePolicy", "iam:DetachRolePolicy",
+        "iam:CreateInstanceProfile", "iam:DeleteInstanceProfile",
         "iam:AddRoleToInstanceProfile", "iam:RemoveRoleFromInstanceProfile",
         "iam:PassRole"
       ]
