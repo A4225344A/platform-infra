@@ -3,7 +3,7 @@ name: Deploy App to Verify Instance
 on:
   repository_dispatch:
     types: [app-image-published]
-  workflow_dispatch: {}   # 方便你手動測試,不用等 platform-app 真的 push
+  workflow_dispatch: {}   # 手動測試,不用等 platform-app 真的 push
 
 permissions:
   id-token: write
