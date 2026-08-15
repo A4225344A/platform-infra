@@ -1,4 +1,4 @@
-# 頂層只呼叫 infra module。換雲時把這裡改成 module "infra" { source = "./modules/gcp-infra" }
+# 頂層只呼叫 infra module。換雲時把這裡改成 module "infra" { source = "./modules/gcp-infra" } 
 module "infra" {
   source       = "./modules/aws-infra"
   project_name = var.project_name
