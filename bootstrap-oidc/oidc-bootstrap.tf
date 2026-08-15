@@ -1,13 +1,20 @@
 # oidc-bootstrap.tf
-# 這份檔案刻意獨立管理,不放進 modules/aws-infra/ 的主要 apply 流程——
-# 原因是它定義的 IAM Role 本身就是 CI 拿來認證用的東西,
-# 如果跟其他資源混在同一個 state 裡被 CI 自動 apply/destroy,
-# 有機率不小心把 CI 自己正在用的認證路徑弄壞(自己拔自己的梯子)。
-# 這份檔案只在 bootstrap 時手動 apply 一次,之後不動它。
+# 這份檔案獨立在 bootstrap-oidc/ 這個子目錄,是自己的 root module、自己的 state
+# (key = oidc/terraform.tfstate,見 provider.tf)——不是註解說說而已,CI 的
+# terraform init/plan/apply 都在 repo 根目錄執行,物理上完全看不到這個子目錄,
+# 也就完全碰不到這裡定義的 IAM Role,避免 CI 自己拔自己的梯子。
+# 這份檔案只由人工在 CloudShell(admin 身分)手動 apply,之後不動它。
 
 data "tls_certificate" "github" {
   url = "https://token.actions.githubusercontent.com/.well-known/openid-configuration"
 }
+
+# bootstrap.tf(根目錄的另一份 state)建的鎖表,這裡用 data source 讀它的 ARN
+data "aws_dynamodb_table" "tflock" {
+  name = "${var.project_name}-tflock"
+}
+
+data "aws_caller_identity" "current" {}
 
 resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"
@@ -47,7 +54,7 @@ resource "aws_iam_role_policy" "gha_plan_state_lock" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]
-      Resource = aws_dynamodb_table.tflock.arn
+      Resource = data.aws_dynamodb_table.tflock.arn
     }]
   })
 }
@@ -74,6 +81,32 @@ resource "aws_iam_role" "gha_apply" {
 resource "aws_iam_role_policy_attachment" "gha_apply_scoped" {
   role       = aws_iam_role.gha_apply.name
   policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
+}
+
+# PowerUserAccess 刻意排除幾乎所有 iam:* 動作(含讀取),但 modules/aws-infra/iam.tf
+# 的 platform-node-role/-profile 是無害的 EC2 節點角色,屬於 main state 正常管理範圍,
+# 需要額外開一條精準的口子讓 gha_apply 能管它——Resource 明確鎖死在這兩個名字,
+# 不含 gha_plan/gha_apply/OIDC provider 自己,CI 依然完全碰不到自己的認證鏈。
+resource "aws_iam_role_policy" "gha_apply_node_iam" {
+  name = "${var.project_name}-gha-apply-node-iam"
+  role = aws_iam_role.gha_apply.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "iam:GetRole", "iam:CreateRole", "iam:DeleteRole", "iam:TagRole",
+        "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:ListAttachedRolePolicies",
+        "iam:GetInstanceProfile", "iam:CreateInstanceProfile", "iam:DeleteInstanceProfile",
+        "iam:AddRoleToInstanceProfile", "iam:RemoveRoleFromInstanceProfile",
+        "iam:PassRole"
+      ]
+      Resource = [
+        "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project_name}-node-role",
+        "arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/${var.project_name}-node-profile"
+      ]
+    }]
+  })
 }
 
 output "gha_plan_role_arn"  { value = aws_iam_role.gha_plan.arn }
