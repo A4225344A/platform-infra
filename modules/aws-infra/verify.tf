@@ -1,4 +1,14 @@
 # modules/aws-infra/verify.tf
+#
+# 停用中(任務 8 收尾):任務 7(手動 SSM 部署計時)與任務 8(自動部署計時)的比較都跑完了,
+# 不再需要這台常駐驗證機——整段用 block comment 停用,不刪除,保留給以後想再拉一台
+# 同規格的驗證機時直接取消註解重用。停用後 terraform 完全看不到這個 resource,
+# 效果等同刪除(下次 apply 不會因為 state 沒有它而嘗試重建),但程式碼還在 git 歷史與這個檔案裡。
+#
+# 重新啟用方式:把下面 /* 到 */ 整段刪掉(取消註解),git push,走一次 3.4 的
+# plan → apply 流程即可重新建出來。
+
+/*
 resource "aws_instance" "verify" {
   ami                    = data.aws_ami.al2023.id
   instance_type          = "t3.small"
@@ -29,3 +39,4 @@ data "aws_ami" "al2023" {
     values = ["al2023-ami-*-x86_64"]
   }
 }
+*/
