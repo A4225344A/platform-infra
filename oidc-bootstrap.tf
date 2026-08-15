@@ -26,7 +26,7 @@ resource "aws_iam_role" "gha_plan" {
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
-        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:A4225344A/platform-infra:pull_request*" }
+        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:A4225344A*/platform-infra*:pull_request*" }
       }
     }]
   })
@@ -34,6 +34,22 @@ resource "aws_iam_role" "gha_plan" {
 resource "aws_iam_role_policy_attachment" "gha_plan_readonly" {
   role       = aws_iam_role.gha_plan.name
   policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+}
+
+# ⚠️ 只掛 ReadOnlyAccess 不夠——terraform plan 預設會先取得 state 鎖,
+# 而寫入 DynamoDB 鎖表需要 PutItem/DeleteItem 這類寫入權限,ReadOnlyAccess 不含這些,
+# plan 會卡在 "Acquiring state lock" 這步報 AccessDeniedException。
+resource "aws_iam_role_policy" "gha_plan_state_lock" {
+  name = "${var.project_name}-gha-plan-state-lock"
+  role = aws_iam_role.gha_plan.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]
+      Resource = aws_dynamodb_table.tflock.arn
+    }]
+  })
 }
 
 # 給「真的會動資源」用的角色:只有 push 到 main、或手動 workflow_dispatch 才能用
@@ -47,7 +63,7 @@ resource "aws_iam_role" "gha_apply" {
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
-        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:A4225344A/platform-infra:environment:production" }
+        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:A4225344A*/platform-infra*:environment:production" }
       }
     }]
   })
