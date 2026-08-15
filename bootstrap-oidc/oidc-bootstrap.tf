@@ -59,7 +59,13 @@ resource "aws_iam_role_policy" "gha_plan_state_lock" {
   })
 }
 
-# 給「真的會動資源」用的角色:只有 push 到 main、或手動 workflow_dispatch 才能用
+# 給「真的會動資源」用的角色:只有 push 到 main、手動 workflow_dispatch、或帶
+# environment: production 的 job 才能用。
+# sub 條件放兩種格式(StringLike 用陣列做 OR):
+#   - "...:environment:production" → terraform-apply.yml / deploy-app.yml 這類設了
+#     environment: production 的 job(走人工核准)
+#   - "...:ref:refs/heads/main"    → terraform-destroy.yml 這種排程/無 environment 的
+#     job(要無人值守跑,不能卡在等核准),否則 nightly destroy 排程永遠卡住等人點
 resource "aws_iam_role" "gha_apply" {
   name = "${var.project_name}-gha-apply"
   assume_role_policy = jsonencode({
@@ -70,7 +76,12 @@ resource "aws_iam_role" "gha_apply" {
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
-        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:A4225344A*/platform-infra*:environment:production" }
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = [
+            "repo:A4225344A*/platform-infra*:environment:production",
+            "repo:A4225344A*/platform-infra*:ref:refs/heads/main"
+          ]
+        }
       }
     }]
   })
