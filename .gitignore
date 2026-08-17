@@ -5,6 +5,10 @@
 .terraform.lock.hcl
 *.tfvars
 !example.tfvars
+# bootstrap-oidc/terraform.tfvars 刻意進版控:內容只有 github_org/repo 名稱這類
+# 非機敏設定,commit 進去方便 apply、也讓 fork 的人一看檔案就知道要改哪個值
+# (檔案開頭有註解提醒),不是真的敏感資訊,跟其他 .tfvars 的排除理由不同。
+!bootstrap-oidc/terraform.tfvars
 *.tfvars.json
 crash.log
 crash.*.log
