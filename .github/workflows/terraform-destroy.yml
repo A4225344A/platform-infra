@@ -1,7 +1,7 @@
 name: Terraform Destroy (nightly)
 on:
-  schedule:
-    - cron: "0 15 * * *"   # UTC 15:00 = 台灣時間 23:00
+  # schedule:
+  #  - cron: "0 15 * * *"   # UTC 15:00 = 台灣時間 23:00
   workflow_dispatch: {}
 
 permissions:

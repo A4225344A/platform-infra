@@ -8,7 +8,7 @@
 # 重新啟用方式:把下面 /* 到 */ 整段刪掉(取消註解),git push,走一次 3.4 的
 # plan → apply 流程即可重新建出來。
 
-
+/*
 resource "aws_instance" "verify" {
   ami                    = data.aws_ami.al2023.id
   instance_type          = "t3.small"
@@ -39,4 +39,4 @@ data "aws_ami" "al2023" {
     values = ["al2023-ami-*-x86_64"]
   }
 }
-
+*/
