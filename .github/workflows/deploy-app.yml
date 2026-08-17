@@ -16,32 +16,34 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::029099141993:role/platform-gha-apply
-          aws-region: ap-northeast-1
+          role-to-assume: ${{ vars.GHA_APPLY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
 
       - name: 依標籤查詢驗證機的 instance id
         id: instance
         run: |
           ID=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=platform-verify" "Name=instance-state-name,Values=running" \
+            --filters "Name=tag:Name,Values=${{ vars.PROJECT_NAME }}-verify" "Name=instance-state-name,Values=running" \
             --query 'Reservations[0].Instances[0].InstanceId' --output text)
           if [ "$ID" = "None" ] || [ -z "$ID" ]; then
-            echo "找不到執行中的 platform-verify 實例,任務 7 的 EC2 建了嗎?"
+            echo "找不到執行中的 ${{ vars.PROJECT_NAME }}-verify 實例,任務 7 的 EC2 建了嗎?"
             exit 1
           fi
           echo "id=$ID" >> "$GITHUB_OUTPUT"
 
       - name: 透過 SSM 拉最新映像、重啟容器(public package,不用 docker login)
+        env:
+          IMAGE: ghcr.io/${{ vars.GHCR_OWNER }}/${{ vars.SERVICE_NAME }}:latest
         run: |
           CMD_ID=$(aws ssm send-command \
             --instance-ids "${{ steps.instance.outputs.id }}" \
             --document-name "AWS-RunShellScript" \
-            --parameters commands='[
-              "docker pull ghcr.io/a4225344a/platform-service:latest",
-              "docker stop platform-service || true",
-              "docker rm platform-service || true",
-              "docker run -d --name platform-service -p 8080:8080 --restart unless-stopped ghcr.io/a4225344a/platform-service:latest"
-            ]' \
+            --parameters commands="[
+              \"docker pull ${IMAGE}\",
+              \"docker stop ${{ vars.SERVICE_NAME }} || true\",
+              \"docker rm ${{ vars.SERVICE_NAME }} || true\",
+              \"docker run -d --name ${{ vars.SERVICE_NAME }} -p 8080:8080 --restart unless-stopped ${IMAGE}\"
+            ]" \
             --query "Command.CommandId" --output text)
           for i in $(seq 1 20); do
             sleep 5

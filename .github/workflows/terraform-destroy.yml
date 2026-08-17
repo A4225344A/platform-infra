@@ -15,8 +15,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::029099141993:role/platform-gha-apply
-          aws-region: ap-northeast-1
+          role-to-assume: ${{ vars.GHA_APPLY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
       - uses: hashicorp/setup-terraform@v3
       - run: terraform init
       - run: |

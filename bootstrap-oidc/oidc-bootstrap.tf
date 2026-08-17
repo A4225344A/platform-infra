@@ -33,7 +33,7 @@ resource "aws_iam_role" "gha_plan" {
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
-        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:A4225344A*/platform-infra*:pull_request*" }
+        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}*/${var.infra_repo_name}*:pull_request*" }
       }
     }]
   })
@@ -78,8 +78,8 @@ resource "aws_iam_role" "gha_apply" {
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
         StringLike = {
           "token.actions.githubusercontent.com:sub" = [
-            "repo:A4225344A*/platform-infra*:environment:production",
-            "repo:A4225344A*/platform-infra*:ref:refs/heads/main"
+            "repo:${var.github_org}*/${var.infra_repo_name}*:environment:production",
+            "repo:${var.github_org}*/${var.infra_repo_name}*:ref:refs/heads/main"
           ]
         }
       }
@@ -124,5 +124,52 @@ resource "aws_iam_role_policy" "gha_apply_node_iam" {
   })
 }
 
-output "gha_plan_role_arn"  { value = aws_iam_role.gha_plan.arn }
-output "gha_apply_role_arn" { value = aws_iam_role.gha_apply.arn }
+# ── 給 platform-app repo 推 ECR 用(image 備援,GHCR 為主、ECR 為備)──
+# 範圍刻意跟 gha_apply 分開:只准對這一個 ECR repo 推 image,不掛任何
+# VPC/IAM/Budget/SSM 權限——這個角色的職責只有「推 image 到 ECR」。
+resource "aws_iam_role" "gha_app_deploy" {
+  name = "${var.project_name}-gha-app-deploy"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
+        # 注意這裡信任的是 app_repo_name(platform-app),不是 infra_repo_name(platform-infra)
+        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}*/${var.app_repo_name}*:ref:refs/heads/main*" }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "gha_app_deploy_ecr_push" {
+  name = "${var.project_name}-gha-app-deploy-ecr-push"
+  role = aws_iam_role.gha_app_deploy.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "EcrAuth"
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = "*"   # AWS 規定這個 action 不支援資源層級限制,只能是 *
+      },
+      {
+        Sid      = "EcrPushThisRepoOnly"
+        Effect   = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage",
+          "ecr:InitiateLayerUpload", "ecr:UploadLayerPart",
+          "ecr:CompleteLayerUpload", "ecr:PutImage"
+        ]
+        Resource = "arn:aws:ecr:${var.aws_region}:${data.aws_caller_identity.current.account_id}:repository/${var.project_name}-service"
+      }
+    ]
+  })
+}
+
+output "gha_plan_role_arn"       { value = aws_iam_role.gha_plan.arn }
+output "gha_apply_role_arn"      { value = aws_iam_role.gha_apply.arn }
+output "gha_app_deploy_role_arn" { value = aws_iam_role.gha_app_deploy.arn }
