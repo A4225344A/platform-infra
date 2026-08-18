@@ -113,6 +113,7 @@ resource "aws_iam_role_policy" "gha_apply_node_iam" {
         "iam:CreateRole", "iam:DeleteRole", "iam:TagRole", "iam:UntagRole",
         "iam:AttachRolePolicy", "iam:DetachRolePolicy",
         "iam:CreateInstanceProfile", "iam:DeleteInstanceProfile",
+        "iam:TagInstanceProfile", "iam:UntagInstanceProfile",
         "iam:AddRoleToInstanceProfile", "iam:RemoveRoleFromInstanceProfile",
         "iam:PassRole"
       ]
