@@ -1,0 +1,39 @@
+# .github/workflows/update-gitops.yml
+name: Update GitOps manifest with new digest
+on:
+  repository_dispatch:
+    types: [app-image-published]
+
+permissions:
+  contents: read
+
+jobs:
+  update-gitops:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update GitOps manifest
+        env:
+          DIGEST: ${{ github.event.client_payload.digest }}
+        run: |
+          if [ -z "$DIGEST" ]; then
+            echo "沒收到 digest(event payload 缺 client_payload.digest),跳過"
+            exit 1
+          fi
+
+          git clone "https://x-access-token:${{ secrets.GITOPS_TOKEN }}@github.com/${{ vars.GITOPS_REPO || 'A4225344A/platform-gitops' }}.git"
+          cd platform-gitops
+          # ⚠️ 必要:runner 的 git 沒有預設身分,少了這兩行 git commit 會直接失敗
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # 在 shell 端把完整映像位址組好,再讓 yq 只做「單純賦值」——
+          # 不要在 yq 表達式裡用 "字面字串" + env(...) 拼接(yq 對字串相加有已知限制,
+          # 會報 "Scalars not yet supported for addition"),也避開 Bash 單雙引號交錯轉義。
+          IMAGE="ghcr.io/${{ vars.GHCR_OWNER }}/${{ vars.SERVICE_NAME || 'platform-service' }}@${DIGEST}"
+          IMAGE="$IMAGE" yq -i '.spec.template.spec.containers[0].image = strenv(IMAGE)' apps/orders-api.yaml
+
+          # 若 digest 沒變(例如重跑同一次 build),沒有差異時 commit 會回非零而讓 job 紅燈,
+          # 這裡明確視為正常情況跳過
+          git diff --quiet && echo "digest 未變更,跳過" && exit 0
+          git commit -am "deploy ${DIGEST}"
+          git push
