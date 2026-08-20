@@ -30,7 +30,16 @@ jobs:
           # 不要在 yq 表達式裡用 "字面字串" + env(...) 拼接(yq 對字串相加有已知限制,
           # 會報 "Scalars not yet supported for addition"),也避開 Bash 單雙引號交錯轉義。
           IMAGE="ghcr.io/${{ vars.GHCR_OWNER }}/${{ vars.SERVICE_NAME || 'platform-service' }}@${DIGEST}"
-          IMAGE="$IMAGE" yq -i '.spec.template.spec.containers[0].image = strenv(IMAGE)' apps/orders-api.yaml
+
+          # 五支服務共用同一個映像(W2 任務 7),每個 apps/*-api.yaml 都是
+          # Deployment+Service+HTTPRoute 三份文件的多文件 YAML。
+          # ⚠️ 必要:select(di==0) 只挑第一份文件(Deployment)——yq -i 預設對
+          # 檔案裡「每一份」文件套用同一個表達式,Service/HTTPRoute 沒有
+          # spec.template.spec.containers 這個路徑,少了 select 會被 yq 自動
+          # 建立出一段不存在的假欄位,汙染 Service/HTTPRoute manifest。
+          for f in apps/*-api.yaml; do
+            IMAGE="$IMAGE" yq -i '(select(di == 0) | .spec.template.spec.containers[0].image) = strenv(IMAGE)' "$f"
+          done
 
           # 若 digest 沒變(例如重跑同一次 build),沒有差異時 commit 會回非零而讓 job 紅燈,
           # 這裡明確視為正常情況跳過
