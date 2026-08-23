@@ -6,6 +6,21 @@ REGION="${AWS_REGION}"
 PROJECT="${PROJECT_NAME}"
 CONTROL_IP="${CONTROL_PRIVATE_IP}"
 
+# 同 user_data_control.sh:get.k3s.io 的下載偶爾單次瞬斷,值得重試而不是讓整個
+# join 腳本直接死掉。
+retry() {
+  local n=1 max=5 delay=15
+  until "$@"; do
+    if [ "$n" -ge "$max" ]; then
+      echo "重試 $max 次後仍失敗: $*" >&2
+      return 1
+    fi
+    echo "第 $n 次失敗,$${delay}s 後重試: $*" >&2
+    n=$((n + 1))
+    sleep "$delay"
+  done
+}
+
 # eBPF 前置(worker 也要,漏掉會讓這台的 Cilium agent CrashLoop)
 mount bpffs -t bpf /sys/fs/bpf
 echo "bpffs /sys/fs/bpf bpf defaults 0 0" >> /etc/fstab
@@ -24,7 +39,10 @@ for i in $(seq 1 60); do
 done
 [ -n "$${TOKEN:-}" ] || { echo "取不到 token,放棄"; exit 1; }
 
-curl -sfL https://get.k3s.io | \
-  K3S_URL="https://$${CONTROL_IP}:6443" K3S_TOKEN="$TOKEN" sh -
+join_k3s() {
+  curl -sfL https://get.k3s.io | \
+    K3S_URL="https://$${CONTROL_IP}:6443" K3S_TOKEN="$TOKEN" sh -
+}
+retry join_k3s
 
 echo "=== worker join 完成 ==="

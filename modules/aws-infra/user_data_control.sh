@@ -7,6 +7,22 @@ PROJECT="${PROJECT_NAME}"
 GWAPI_VERSION=v1.3.0
 CILIUM_VERSION=1.17.6
 
+# 外部下載(GitHub/dl.k8s.io release CDN)偶爾會單次瞬斷,曾經在實測中讓
+# 整個 user_data 死在下載這一步(hash 檔案抓得到、幾十 MB 的 binary 抓不到)。
+# set -e 底下一次失敗就整份腳本中止,補上重試比人工進 Session Manager 手動接續划算。
+retry() {
+  local n=1 max=5 delay=15
+  until "$@"; do
+    if [ "$n" -ge "$max" ]; then
+      echo "重試 $max 次後仍失敗: $*" >&2
+      return 1
+    fi
+    echo "第 $n 次失敗,$${delay}s 後重試: $*" >&2
+    n=$((n + 1))
+    sleep "$delay"
+  done
+}
+
 # --- 1. eBPF 前置條件 ---
 mount bpffs -t bpf /sys/fs/bpf
 echo "bpffs /sys/fs/bpf bpf defaults 0 0" >> /etc/fstab
@@ -14,12 +30,15 @@ echo "* soft memlock unlimited" >> /etc/security/limits.conf
 echo "* hard memlock unlimited" >> /etc/security/limits.conf
 
 # --- 2. 裝 k3s(關掉要替換的預設) ---
-curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="\
-  --flannel-backend=none \
-  --disable-network-policy \
-  --disable-kube-proxy \
-  --disable=traefik \
-  --disable=servicelb" sh -
+install_k3s() {
+  curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="\
+    --flannel-backend=none \
+    --disable-network-policy \
+    --disable-kube-proxy \
+    --disable=traefik \
+    --disable=servicelb" sh -
+}
+retry install_k3s
 
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 echo 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml' >> /root/.bashrc
@@ -34,17 +53,27 @@ aws ssm put-parameter --region "$REGION" \
 until kubectl get --raw /readyz >/dev/null 2>&1; do sleep 3; done
 
 # --- 5. 裝工具鏈 ---
-curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-chmod +x kubectl && mv kubectl /usr/local/bin/
+install_kubectl() {
+  curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+  chmod +x kubectl && mv kubectl /usr/local/bin/
+}
+retry install_kubectl
 
-CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
-curl -L --fail --remote-name-all \
-  "https://github.com/cilium/cilium-cli/releases/download/$${CILIUM_CLI_VERSION}/cilium-linux-amd64.tar.gz"
-tar xzvfC cilium-linux-amd64.tar.gz /usr/local/bin
+install_cilium_cli() {
+  CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
+  curl -L --fail --remote-name-all \
+    "https://github.com/cilium/cilium-cli/releases/download/$${CILIUM_CLI_VERSION}/cilium-linux-amd64.tar.gz"
+  tar xzvfC cilium-linux-amd64.tar.gz /usr/local/bin
+}
+retry install_cilium_cli
 
 # --- 6. Gateway API CRD(必須在 Cilium 之前,且要等 Established) ---
-kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/$${GWAPI_VERSION}/standard-install.yaml"
-kubectl apply -f "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$${GWAPI_VERSION}/config/crd/experimental/gateway.networking.k8s.io_tlsroutes.yaml"
+apply_gwapi_crds() {
+  kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/$${GWAPI_VERSION}/standard-install.yaml"
+  kubectl apply -f "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$${GWAPI_VERSION}/config/crd/experimental/gateway.networking.k8s.io_tlsroutes.yaml"
+}
+retry apply_gwapi_crds
+
 for crd in gateways httproutes tlsroutes; do
   kubectl wait --for=condition=Established \
     "crd/$${crd}.gateway.networking.k8s.io" --timeout=120s
@@ -72,6 +101,10 @@ envoy:
       envoy: [NET_ADMIN, PERFMON, BPF, NET_BIND_SERVICE]
 EOF
 
+# cilium install 本身不重試——Helm install 失敗到一半再重跑,可能撞上
+# "cannot re-use a name that is still in use" 這種殘留 release 衝突,
+# 比原本的失敗更難清。上面幾個外部下載才是實測會瞬斷的環節,已經重試過了,
+# 走到這裡網路多半是穩的;真的失敗了直接讓腳本中止,交給人工判斷比較安全。
 cilium install --version "$${CILIUM_VERSION}" -f /root/cilium-values.yaml
 cilium status --wait
 
