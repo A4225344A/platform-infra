@@ -3,4 +3,5 @@ module "infra" {
   source       = "./modules/aws-infra"
   project_name = var.project_name
   alert_email  = var.alert_email
+  aws_region   = var.aws_region
 }

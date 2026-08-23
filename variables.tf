@@ -9,3 +9,7 @@ variable "project_name" {
 variable "alert_email" {
   type = string
 }
+variable "aws_region" {
+  type    = string
+  default = "ap-northeast-1"
+}

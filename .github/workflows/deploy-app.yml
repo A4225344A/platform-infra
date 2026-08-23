@@ -1,8 +1,6 @@
 # .github/workflows/deploy-app.yml
 name: Deploy App to Verify Instance
 on:
-  repository_dispatch:
-    types: [app-image-published]
   workflow_dispatch: {}   # 手動測試,不用等 platform-app 真的 push
 
 permissions:

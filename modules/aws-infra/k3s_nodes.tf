@@ -53,20 +53,24 @@ resource "aws_instance" "control" {
   vpc_security_group_ids = [aws_security_group.k3s.id, aws_security_group.web.id]
   iam_instance_profile   = aws_iam_instance_profile.node.name
   metadata_options {
-    http_tokens                 = "required" # 強制 IMDSv2
-    http_put_response_hop_limit = 1          # 容器內的 Pod 多一跳,預設拿不到 IMDS 回應
+    http_tokens = "required" # 強制 IMDSv2
+    # W3:容器經 veth/bridge 會多一跳,hop=1 時 Pod 完全拿不到 IMDS 回應。
+    # LiteLLM 需要 Bedrock 憑證、ai-agent 需要 SES 憑證,必須放行到 2。
+    # 代價:同節點任何 Pod 都能取得節點角色權限——這是已知缺口,
+    # 待 W4 的 NetworkPolicy 收斂,徹底解法是 IRSA / IAM Roles Anywhere。
+    http_put_response_hop_limit = 2
   }
   tags = { Name = "${var.project_name}-control" }
 }
 resource "aws_instance" "worker" {
   ami                    = data.aws_ami.al2023.id
-  instance_type          = "t3.small"
+  instance_type          = "t3.large" # W3:Presidio 的 spaCy en_core_web_lg 需 1–1.5GB 常駐,t3.small(2GB)放不下
   subnet_id              = aws_subnet.public["b"].id
   vpc_security_group_ids = [aws_security_group.k3s.id]
   iam_instance_profile   = aws_iam_instance_profile.node.name
   metadata_options {
     http_tokens                 = "required"
-    http_put_response_hop_limit = 1
+    http_put_response_hop_limit = 2
   }
   tags = { Name = "${var.project_name}-worker" }
 }
