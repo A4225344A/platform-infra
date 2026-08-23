@@ -112,6 +112,10 @@ resource "aws_iam_role_policy" "gha_apply_node_iam" {
         "iam:Get*", "iam:List*",
         "iam:CreateRole", "iam:DeleteRole", "iam:TagRole", "iam:UntagRole",
         "iam:AttachRolePolicy", "iam:DetachRolePolicy",
+        # W3:node_ai 用的是 inline policy(aws_iam_role_policy),不是掛現成的管理型
+        # policy——AttachRolePolicy 涵蓋不到,建立/更新要 PutRolePolicy,刪除要
+        # DeleteRolePolicy,兩個都補,否則下次 destroy 也會用同樣的方式卡關。
+        "iam:PutRolePolicy", "iam:DeleteRolePolicy",
         "iam:CreateInstanceProfile", "iam:DeleteInstanceProfile",
         "iam:TagInstanceProfile", "iam:UntagInstanceProfile",
         "iam:AddRoleToInstanceProfile", "iam:RemoveRoleFromInstanceProfile",
