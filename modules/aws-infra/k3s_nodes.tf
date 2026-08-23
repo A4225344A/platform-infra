@@ -61,6 +61,10 @@ resource "aws_instance" "control" {
     http_put_response_hop_limit = 2
   }
   tags = { Name = "${var.project_name}-control" }
+  user_data = templatefile("${path.module}/user_data_control.sh", {
+    AWS_REGION   = var.aws_region
+    PROJECT_NAME = var.project_name
+  })
 }
 resource "aws_instance" "worker" {
   ami                    = data.aws_ami.al2023.id
@@ -73,6 +77,11 @@ resource "aws_instance" "worker" {
     http_put_response_hop_limit = 2
   }
   tags = { Name = "${var.project_name}-worker" }
+  user_data = templatefile("${path.module}/user_data_worker.sh", {
+    AWS_REGION         = var.aws_region
+    PROJECT_NAME       = var.project_name
+    CONTROL_PRIVATE_IP = aws_instance.control.private_ip # 建立隱含的建立順序依賴:worker 必須等 control 先建
+  })
 }
 resource "aws_eip" "control" {
   instance = aws_instance.control.id
