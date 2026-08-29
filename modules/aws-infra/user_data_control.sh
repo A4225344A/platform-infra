@@ -67,6 +67,14 @@ install_cilium_cli() {
 }
 retry install_cilium_cli
 
+# W3 任務 1.2 起要用 helm 裝 kube-prometheus-stack,原本這裡沒裝過。
+install_helm() {
+  curl -fsSL -o /tmp/get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+  chmod +x /tmp/get_helm.sh
+  /tmp/get_helm.sh
+}
+retry install_helm
+
 # --- 6. Gateway API CRD(必須在 Cilium 之前,且要等 Established) ---
 apply_gwapi_crds() {
   kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/$${GWAPI_VERSION}/standard-install.yaml"
