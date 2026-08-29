@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 resource "aws_iam_role" "node" {
   name = "${var.project_name}-node-role"
   assume_role_policy = jsonencode({
@@ -42,10 +44,10 @@ resource "aws_iam_role_policy" "node_ai" {
         Resource = [
           "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-embed-text-*",
 
-          "arn:aws:bedrock:${var.aws_region}:*:inference-profile/apac.amazon.nova-micro-*",
+          "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/apac.amazon.nova-micro-*",
           "arn:aws:bedrock:*::foundation-model/amazon.nova-micro-*",
 
-          "arn:aws:bedrock:${var.aws_region}:*:inference-profile/jp.anthropic.claude-haiku-4-5-*",
+          "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/jp.anthropic.claude-haiku-4-5-*",
           "arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-*"
         ]
       },
@@ -59,7 +61,7 @@ resource "aws_iam_role_policy" "node_ai" {
         Sid      = "ReadPlatformParameters"
         Effect   = "Allow"
         Action   = ["ssm:GetParameter", "ssm:GetParameters"]
-        Resource = "arn:aws:ssm:${var.aws_region}:*:parameter/platform/*"
+        Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/platform/*"
       }
     ]
   })
