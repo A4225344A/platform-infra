@@ -66,3 +66,88 @@ resource "aws_iam_role_policy" "node_ai" {
     ]
   })
 }
+
+resource "aws_iam_user" "litellm_bedrock" {
+  name = "${var.project_name}-litellm-bedrock"
+  path = "/service/"
+}
+
+resource "aws_iam_access_key" "litellm_bedrock" {
+  user = aws_iam_user.litellm_bedrock.name
+}
+
+resource "aws_iam_user_policy" "litellm_bedrock" {
+  name = "${var.project_name}-litellm-bedrock-minimal"
+  user = aws_iam_user.litellm_bedrock.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "InvokeDirectBedrockModels"
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream",
+          "bedrock:Converse",
+          "bedrock:ConverseStream"
+        ]
+        Resource = [
+          "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.nova-micro-v1:0",
+          "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-embed-text-v2:0"
+        ]
+      },
+      {
+        Sid    = "InvokeConfiguredInferenceProfiles"
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream",
+          "bedrock:Converse",
+          "bedrock:ConverseStream",
+          "bedrock:GetInferenceProfile"
+        ]
+        Resource = [
+          "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/apac.amazon.nova-micro-v1:0",
+          "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/jp.anthropic.claude-haiku-4-5-20251001-v1:0"
+        ]
+      },
+      {
+        Sid    = "InvokeProfileBackedNovaModel"
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream",
+          "bedrock:Converse",
+          "bedrock:ConverseStream"
+        ]
+        Resource = [
+          "arn:aws:bedrock:*::foundation-model/amazon.nova-micro-v1:0"
+        ]
+        Condition = {
+          StringLike = {
+            "bedrock:InferenceProfileArn" = "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/apac.amazon.nova-micro-v1:0"
+          }
+        }
+      },
+      {
+        Sid    = "InvokeProfileBackedHaikuModel"
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream",
+          "bedrock:Converse",
+          "bedrock:ConverseStream"
+        ]
+        Resource = [
+          "arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0"
+        ]
+        Condition = {
+          StringLike = {
+            "bedrock:InferenceProfileArn" = "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:inference-profile/jp.anthropic.claude-haiku-4-5-20251001-v1:0"
+          }
+        }
+      }
+    ]
+  })
+}

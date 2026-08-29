@@ -24,3 +24,10 @@ output "node_instance_profile" {
 output "control_public_ip" { value = aws_eip.control.public_ip }
 output "control_private_ip" { value = aws_instance.control.private_ip }
 output "postgres_endpoint" { value = aws_db_instance.postgres.address }
+output "litellm_bedrock_access_key_id" {
+  value = aws_iam_access_key.litellm_bedrock.id
+}
+output "litellm_bedrock_secret_access_key" {
+  value     = aws_iam_access_key.litellm_bedrock.secret
+  sensitive = true
+}

@@ -8,3 +8,10 @@ output "node_instance_profile" { value = module.infra.node_instance_profile }
 output "control_public_ip" { value = module.infra.control_public_ip }
 output "control_private_ip" { value = module.infra.control_private_ip }
 output "postgres_endpoint" { value = module.infra.postgres_endpoint }
+output "litellm_bedrock_access_key_id" {
+  value = module.infra.litellm_bedrock_access_key_id
+}
+output "litellm_bedrock_secret_access_key" {
+  value     = module.infra.litellm_bedrock_secret_access_key
+  sensitive = true
+}
