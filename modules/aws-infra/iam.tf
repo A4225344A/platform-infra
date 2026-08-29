@@ -1,7 +1,7 @@
 resource "aws_iam_role" "node" {
   name = "${var.project_name}-node-role"
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
+    Version   = "2012-10-17"
     Statement = [{ Action = "sts:AssumeRole", Effect = "Allow", Principal = { Service = "ec2.amazonaws.com" } }]
   })
 }
@@ -27,12 +27,26 @@ resource "aws_iam_role_policy" "node_ai" {
     Version = "2012-10-17"
     Statement = [
       {
+        # W3 v6.1.2:模型選型從 claude-3-haiku 換成 Nova Micro(主要判讀)+
+        # Haiku 4.5(fallback),兩個都是跨區推論設定檔,需要同時授權
+        # inference-profile 本身與它可能路由到的底層 foundation-model(region
+        # 放寬為萬用字元)。實測 ID 用 `aws bedrock list-inference-profiles`
+        # 查證,不是照文件猜的值(Nova 是 apac. 前綴,Haiku 4.5 是 jp. 前綴,
+        # 兩個模型家族的推論設定檔命名規則不一樣)。
         Sid    = "BedrockInvoke"
         Effect = "Allow"
-        Action = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
+        Action = [
+          "bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream",
+          "bedrock:Converse", "bedrock:ConverseStream"
+        ]
         Resource = [
-          "arn:aws:bedrock:${var.aws_region}::foundation-model/anthropic.claude-3-haiku-*",
-          "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-embed-text-*"
+          "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-embed-text-*",
+
+          "arn:aws:bedrock:${var.aws_region}:*:inference-profile/apac.amazon.nova-micro-*",
+          "arn:aws:bedrock:*::foundation-model/amazon.nova-micro-*",
+
+          "arn:aws:bedrock:${var.aws_region}:*:inference-profile/jp.anthropic.claude-haiku-4-5-*",
+          "arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-*"
         ]
       },
       {
