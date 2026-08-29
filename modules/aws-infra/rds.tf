@@ -18,7 +18,7 @@ resource "aws_db_subnet_group" "postgres" {
 
 resource "aws_security_group" "rds" {
   name        = "${var.project_name}-rds-sg"
-  description = "僅放行 control/worker 節點連線 PostgreSQL"
+  description = "Allow control/worker nodes to reach PostgreSQL"
   vpc_id      = aws_vpc.main.id
 }
 resource "aws_vpc_security_group_ingress_rule" "postgres" {
