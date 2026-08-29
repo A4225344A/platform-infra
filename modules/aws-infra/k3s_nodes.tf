@@ -47,8 +47,12 @@ data "aws_ami" "al2023" {
 }
 
 resource "aws_instance" "control" {
-  ami                    = data.aws_ami.al2023.id
-  instance_type          = "t3.medium"
+  ami = data.aws_ami.al2023.id
+  # W3:t3.medium(4GB)撐不住 k3s server + Cilium(agent/operator/envoy)+
+  # 整套 kube-prometheus-stack(Prometheus/Grafana/Alertmanager/kube-state-metrics/
+  # operator)同時跑,實測會在沒有 swap 的情況下觸發 kswapd0 抖動,load average
+  # 衝到 20+、API server 連線逾時。升到 t3.large(8GB),vCPU 數不變,只加記憶體。
+  instance_type          = "t3.large"
   subnet_id              = aws_subnet.public["a"].id
   vpc_security_group_ids = [aws_security_group.k3s.id, aws_security_group.web.id]
   iam_instance_profile   = aws_iam_instance_profile.node.name
