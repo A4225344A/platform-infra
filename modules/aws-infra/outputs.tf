@@ -23,3 +23,4 @@ output "node_instance_profile" {
 }
 output "control_public_ip" { value = aws_eip.control.public_ip }
 output "control_private_ip" { value = aws_instance.control.private_ip }
+output "postgres_endpoint" { value = aws_db_instance.postgres.address }
