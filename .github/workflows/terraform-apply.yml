@@ -20,5 +20,8 @@ jobs:
           role-to-assume: ${{ vars.GHA_APPLY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
       - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
       - run: terraform init
-      - run: terraform apply -auto-approve -var="alert_email=${{ vars.ALERT_EMAIL }}"
+      - run: terraform plan -no-color -var="alert_email=${{ vars.ALERT_EMAIL }}" -out=tfplan
+      - run: terraform apply -auto-approve tfplan
