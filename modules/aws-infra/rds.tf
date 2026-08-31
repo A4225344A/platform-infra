@@ -51,4 +51,8 @@ resource "aws_db_instance" "postgres" {
   password               = data.aws_ssm_parameter.postgres_password.value
   skip_final_snapshot    = true
   apply_immediately      = true
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }

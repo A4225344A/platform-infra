@@ -23,3 +23,18 @@ variable "allowed_web_cidrs" {
 variable "alert_email" {
   type = string
 }
+variable "backup_bucket_name" {
+  description = "S3 bucket for W3 pg_dump backups. Empty uses a deterministic project/account/region name."
+  type        = string
+  default     = ""
+}
+variable "rds_snapshot_retention_days" {
+  description = "How many days of task 10 manual RDS snapshots to retain."
+  type        = number
+  default     = 7
+}
+variable "rds_snapshot_schedule_expression" {
+  description = "EventBridge schedule for RDS manual snapshots. Default is 22:30 Asia/Taipei."
+  type        = string
+  default     = "cron(30 14 * * ? *)"
+}

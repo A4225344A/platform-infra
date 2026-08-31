@@ -8,6 +8,8 @@ output "node_instance_profile" { value = module.infra.node_instance_profile }
 output "control_public_ip" { value = module.infra.control_public_ip }
 output "control_private_ip" { value = module.infra.control_private_ip }
 output "postgres_endpoint" { value = module.infra.postgres_endpoint }
+output "backup_bucket_name" { value = module.infra.backup_bucket_name }
+output "rds_snapshot_backup_lambda_name" { value = module.infra.rds_snapshot_backup_lambda_name }
 output "litellm_bedrock_access_key_id" {
   value = module.infra.litellm_bedrock_access_key_id
 }
