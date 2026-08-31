@@ -70,22 +70,67 @@ resource "aws_instance" "control" {
     PROJECT_NAME = var.project_name
   })
 }
-resource "aws_instance" "worker" {
-  ami                    = data.aws_ami.al2023.id
+resource "aws_launch_template" "worker" {
+  name_prefix            = "${var.project_name}-worker-"
+  image_id               = data.aws_ami.al2023.id
   instance_type          = "t3.large" # W3:Presidio 的 spaCy en_core_web_lg 需 1–1.5GB 常駐,t3.small(2GB)放不下
-  subnet_id              = aws_subnet.public["b"].id
   vpc_security_group_ids = [aws_security_group.k3s.id]
-  iam_instance_profile   = aws_iam_instance_profile.node.name
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.node.name
+  }
+
   metadata_options {
     http_tokens                 = "required"
     http_put_response_hop_limit = 2
   }
-  tags = { Name = "${var.project_name}-worker" }
-  user_data = templatefile("${path.module}/user_data_worker.sh", {
+
+  tag_specifications {
+    resource_type = "instance"
+    tags          = { Name = "${var.project_name}-worker" }
+  }
+
+  user_data = base64encode(templatefile("${path.module}/user_data_worker.sh", {
     AWS_REGION         = var.aws_region
     PROJECT_NAME       = var.project_name
     CONTROL_PRIVATE_IP = aws_instance.control.private_ip # 建立隱含的建立順序依賴:worker 必須等 control 先建
-  })
+  }))
+}
+
+resource "aws_autoscaling_group" "worker" {
+  name                = "${var.project_name}-worker"
+  min_size            = 2
+  desired_capacity    = 2
+  max_size            = 4
+  vpc_zone_identifier = [aws_subnet.public["a"].id, aws_subnet.public["b"].id]
+
+  health_check_type         = "EC2"
+  health_check_grace_period = 300
+
+  launch_template {
+    id      = aws_launch_template.worker.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "${var.project_name}-worker"
+    propagate_at_launch = true
+  }
+
+  tag {
+    key                 = "k8s.io/cluster-autoscaler/enabled"
+    value               = "true"
+    propagate_at_launch = false
+  }
+
+  tag {
+    key                 = "k8s.io/cluster-autoscaler/${var.project_name}"
+    value               = "owned"
+    propagate_at_launch = false
+  }
+
+  depends_on = [aws_instance.control]
 }
 resource "aws_eip" "control" {
   instance = aws_instance.control.id

@@ -67,6 +67,48 @@ resource "aws_iam_role_policy" "node_ai" {
   })
 }
 
+resource "aws_iam_role_policy" "cluster_autoscaler" {
+  name = "${var.project_name}-cluster-autoscaler"
+  role = aws_iam_role.node.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ClusterAutoscalerRead"
+        Effect = "Allow"
+        Action = [
+          "autoscaling:DescribeAutoScalingGroups",
+          "autoscaling:DescribeAutoScalingInstances",
+          "autoscaling:DescribeLaunchConfigurations",
+          "autoscaling:DescribeScalingActivities",
+          "autoscaling:DescribeTags",
+          "ec2:DescribeImages",
+          "ec2:DescribeInstanceTypes",
+          "ec2:DescribeLaunchTemplateVersions",
+          "ec2:GetInstanceTypesFromInstanceRequirements"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "ScaleWorkerAsg"
+        Effect = "Allow"
+        Action = [
+          "autoscaling:SetDesiredCapacity",
+          "autoscaling:TerminateInstanceInAutoScalingGroup"
+        ]
+        Resource = "arn:aws:autoscaling:${var.aws_region}:${data.aws_caller_identity.current.account_id}:autoScalingGroup:*:autoScalingGroupName/${var.project_name}-worker"
+        Condition = {
+          StringEquals = {
+            "aws:ResourceTag/k8s.io/cluster-autoscaler/enabled"             = "true"
+            "aws:ResourceTag/k8s.io/cluster-autoscaler/${var.project_name}" = "owned"
+          }
+        }
+      }
+    ]
+  })
+}
+
 resource "aws_iam_user" "litellm_bedrock" {
   name = "${var.project_name}-litellm-bedrock"
   path = "/service/"

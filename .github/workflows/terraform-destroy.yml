@@ -22,5 +22,6 @@ jobs:
       - run: |
           terraform destroy -auto-approve -var="alert_email=${{ vars.ALERT_EMAIL }}" \
             -target=module.infra.aws_instance.control \
-            -target=module.infra.aws_instance.worker \
+            -target=module.infra.aws_autoscaling_group.worker \
+            -target=module.infra.aws_launch_template.worker \
             -target=module.infra.aws_eip.control

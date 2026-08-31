@@ -23,6 +23,7 @@ output "node_instance_profile" {
 }
 output "control_public_ip" { value = aws_eip.control.public_ip }
 output "control_private_ip" { value = aws_instance.control.private_ip }
+output "worker_asg_name" { value = aws_autoscaling_group.worker.name }
 output "postgres_endpoint" { value = aws_db_instance.postgres.address }
 output "backup_bucket_name" { value = aws_s3_bucket.db_backups.bucket }
 output "rds_snapshot_backup_lambda_name" { value = aws_lambda_function.rds_snapshot_backup.function_name }
