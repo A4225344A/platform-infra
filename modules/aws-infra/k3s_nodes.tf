@@ -31,6 +31,13 @@ resource "aws_vpc_security_group_ingress_rule" "kubelet" {
   ip_protocol                  = "tcp"
   referenced_security_group_id = aws_security_group.k3s.id
 }
+resource "aws_vpc_security_group_ingress_rule" "otel" {
+  security_group_id            = aws_security_group.k3s.id
+  from_port                    = 4317
+  to_port                      = 4318
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = aws_security_group.k3s.id
+}
 resource "aws_vpc_security_group_egress_rule" "out" {
   security_group_id = aws_security_group.k3s.id
   ip_protocol       = "-1"
