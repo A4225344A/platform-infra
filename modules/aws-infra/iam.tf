@@ -121,7 +121,6 @@ resource "aws_iam_role_policy" "otel_cloudwatch_logs" {
         Effect = "Allow"
         Action = [
           "logs:CreateLogGroup",
-          "logs:DescribeLogGroups",
           "logs:DescribeLogStreams"
         ]
         Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/w3/*"
@@ -134,6 +133,21 @@ resource "aws_iam_role_policy" "otel_cloudwatch_logs" {
           "logs:PutLogEvents"
         ]
         Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/w3/*:log-stream:*"
+      },
+      {
+        Sid      = "DescribeCloudWatchLogGroupsForValidation"
+        Effect   = "Allow"
+        Action   = ["logs:DescribeLogGroups"]
+        Resource = "*"
+      },
+      {
+        Sid    = "ReadW3CloudWatchLogsForValidation"
+        Effect = "Allow"
+        Action = [
+          "logs:FilterLogEvents",
+          "logs:GetLogEvents"
+        ]
+        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/w3/*"
       }
     ]
   })
