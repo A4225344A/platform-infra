@@ -59,12 +59,12 @@ platform-infra/
 
 | Workflow | 觸發時機 | 用的角色 | 做的事 |
 |---|---|---|---|
-| `terraform-plan.yml` | 開 PR | `gha_plan`(唯讀) | `terraform plan`,結果留言到 PR |
+| `terraform-plan.yml` | 開 PR / 手動 | `gha_plan`(唯讀) | `terraform plan`;PR 會留言,手動執行看 Actions log |
 | `terraform-apply.yml` | push main / 手動 | `gha_apply` | `terraform apply -auto-approve` |
 | `terraform-destroy.yml` | 手動(可排程) | `gha_apply` | 銷毀指定資源,控制閒置成本 |
 | `deploy-app.yml` | 收到跨 repo dispatch / 手動 | `gha_apply` | 透過 SSM 在驗證機上拉最新 image、重啟容器 |
 
-三個角色的信任範圍互不重疊:`gha_plan` 只能讀、只在 PR 內觸發;`gha_apply` 只在 push main 或帶 `environment: production` 的 job 內可用;`gha_app_deploy`(定義在 `bootstrap-oidc/`)只准對單一 ECR repo 執行 push,不掛任何其他權限,專門給推送映像的應用程式 repo 使用。
+三個角色的信任範圍互不重疊:`gha_plan` 只能讀、只允許 PR 或 main 分支手動觸發;`gha_apply` 只在 push main 或帶 `environment: production` 的 job 內可用;`gha_app_deploy`(定義在 `bootstrap-oidc/`)只准對單一 ECR repo 執行 push,不掛任何其他權限,專門給推送映像的應用程式 repo 使用。
 
 ## 事前準備
 
@@ -120,7 +120,7 @@ terraform output gha_app_deploy_role_arn
 | `SERVICE_NAME` | 部署到驗證機的容器/服務名稱 |
 | `GHCR_OWNER` | 存放應用程式映像的 GHCR 帳號(小寫) |
 
-之後每次 push 到 main 都會自動 `apply`,開 PR 會自動 `plan` 並留言結果,不需要再手動登入操作雲端主控台。
+之後每次 push 到 main 都會自動 `apply`,開 PR 會自動 `plan` 並留言結果；需要補跑驗證時,也可以在 GitHub Actions 手動執行 `Terraform Plan` 並查看 run log。
 
 ## 搭配的應用程式 repo
 

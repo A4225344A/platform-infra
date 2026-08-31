@@ -22,18 +22,23 @@ resource "aws_iam_openid_connect_provider" "github" {
   thumbprint_list = [data.tls_certificate.github.certificates[0].sha1_fingerprint]
 }
 
-# 只給「唯讀 plan」用的角色:在 PR 開啟時觸發,只能 plan 不能 apply
+# 只給「唯讀 plan」用的角色:PR 與 main 分支手動觸發可用,只能 plan 不能 apply
 resource "aws_iam_role" "gha_plan" {
   name = "${var.project_name}-gha-plan"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
-      Action = "sts:AssumeRoleWithWebIdentity"
+      Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
-        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}*/${var.infra_repo_name}*:pull_request*" }
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = [
+            "repo:${var.github_org}*/${var.infra_repo_name}*:pull_request*",
+            "repo:${var.github_org}*/${var.infra_repo_name}*:ref:refs/heads/main"
+          ]
+        }
       }
     }]
   })
@@ -71,9 +76,9 @@ resource "aws_iam_role" "gha_apply" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
-      Action = "sts:AssumeRoleWithWebIdentity"
+      Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
         StringLike = {
@@ -137,13 +142,13 @@ resource "aws_iam_role" "gha_app_deploy" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
-      Action = "sts:AssumeRoleWithWebIdentity"
+      Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
         # 注意這裡信任的是 app_repo_name(platform-app),不是 infra_repo_name(platform-infra)
-        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}*/${var.app_repo_name}*:ref:refs/heads/main*" }
+        StringLike = { "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}*/${var.app_repo_name}*:ref:refs/heads/main*" }
       }
     }]
   })
@@ -159,11 +164,11 @@ resource "aws_iam_role_policy" "gha_app_deploy_ecr_push" {
         Sid      = "EcrAuth"
         Effect   = "Allow"
         Action   = ["ecr:GetAuthorizationToken"]
-        Resource = "*"   # AWS 規定這個 action 不支援資源層級限制,只能是 *
+        Resource = "*" # AWS 規定這個 action 不支援資源層級限制,只能是 *
       },
       {
-        Sid      = "EcrPushThisRepoOnly"
-        Effect   = "Allow"
+        Sid    = "EcrPushThisRepoOnly"
+        Effect = "Allow"
         Action = [
           "ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage",
           "ecr:InitiateLayerUpload", "ecr:UploadLayerPart",
@@ -175,6 +180,6 @@ resource "aws_iam_role_policy" "gha_app_deploy_ecr_push" {
   })
 }
 
-output "gha_plan_role_arn"       { value = aws_iam_role.gha_plan.arn }
-output "gha_apply_role_arn"      { value = aws_iam_role.gha_apply.arn }
+output "gha_plan_role_arn" { value = aws_iam_role.gha_plan.arn }
+output "gha_apply_role_arn" { value = aws_iam_role.gha_apply.arn }
 output "gha_app_deploy_role_arn" { value = aws_iam_role.gha_app_deploy.arn }
