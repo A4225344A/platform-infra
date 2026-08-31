@@ -134,6 +134,42 @@ resource "aws_iam_role_policy" "gha_apply_node_iam" {
   })
 }
 
+# W3 task 10:main state now manages the RDS snapshot backup Lambda role.
+# PowerUserAccess can create Lambda/EventBridge/S3/RDS resources, but IAM is
+# deliberately excluded, so gha_apply needs a narrow exception for this one
+# service role and its inline/managed policy attachments.
+resource "aws_iam_role_policy" "gha_apply_backup_lambda_iam" {
+  name = "${var.project_name}-gha-apply-backup-lambda-iam"
+  role = aws_iam_role.gha_apply.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ManageBackupLambdaRole"
+        Effect = "Allow"
+        Action = [
+          "iam:Get*", "iam:List*",
+          "iam:CreateRole", "iam:DeleteRole", "iam:TagRole", "iam:UntagRole",
+          "iam:AttachRolePolicy", "iam:DetachRolePolicy",
+          "iam:PutRolePolicy", "iam:DeleteRolePolicy"
+        ]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project_name}-rds-snapshot-backup-lambda"
+      },
+      {
+        Sid      = "PassBackupLambdaRoleToLambda"
+        Effect   = "Allow"
+        Action   = "iam:PassRole"
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project_name}-rds-snapshot-backup-lambda"
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = "lambda.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
 # ── 給 platform-app repo 推 ECR 用(image 備援,GHCR 為主、ECR 為備)──
 # 範圍刻意跟 gha_apply 分開:只准對這一個 ECR repo 推 image,不掛任何
 # VPC/IAM/Budget/SSM 權限——這個角色的職責只有「推 image 到 ECR」。
