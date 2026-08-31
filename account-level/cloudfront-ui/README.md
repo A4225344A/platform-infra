@@ -22,6 +22,32 @@ terraform apply
 
 The default `example.tfvars` creates a CloudFront distribution with only the S3 UI origin and the CloudFront default certificate. This is enough to validate S3 + OAC before the real UI pipeline exists.
 
+## GitHub Actions
+
+Use the dedicated workflow instead of the root daily Terraform workflow:
+
+```text
+CloudFront UI Terraform
+```
+
+Recommended first run:
+
+```text
+action: plan
+cloudfront_aliases_json: []
+create_route53_records: false
+engops_api_origin_domain_name: leave empty
+upload_placeholder_index: true
+```
+
+If the plan is correct, run the same workflow again with:
+
+```text
+action: apply
+```
+
+The apply job uses the `production` environment and the apply role. The plan job uses the plan role and does not require the production environment gate.
+
 ## Enable Custom Domain
 
 CloudFront aliases require an ACM certificate in `us-east-1`.

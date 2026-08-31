@@ -1,0 +1,199 @@
+name: CloudFront UI Terraform
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform action"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+      ui_bucket_name:
+        description: "Optional UI bucket name. Empty uses platform-engops-ui-<account-id>."
+        required: false
+        default: ""
+        type: string
+      cloudfront_aliases_json:
+        description: "JSON array of aliases, e.g. [\"engops.example.com\"]. Empty array uses CloudFront default domain."
+        required: true
+        default: "[]"
+        type: string
+      acm_certificate_arn:
+        description: "ACM certificate ARN in us-east-1. Required when aliases are set."
+        required: false
+        default: ""
+        type: string
+      create_route53_records:
+        description: "Create Route53 A/AAAA alias records for aliases."
+        required: true
+        default: false
+        type: boolean
+      route53_zone_id:
+        description: "Route53 hosted zone ID. Required when create_route53_records is true."
+        required: false
+        default: ""
+        type: string
+      engops_api_origin_domain_name:
+        description: "Optional stable ALB/Gateway DNS for /api/* routing."
+        required: false
+        default: ""
+        type: string
+      engops_api_origin_protocol_policy:
+        description: "Protocol policy for the engops-api origin."
+        required: true
+        default: "https-only"
+        type: choice
+        options:
+          - https-only
+          - http-only
+          - match-viewer
+      upload_placeholder_index:
+        description: "Upload minimal index.html for S3/OAC verification."
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  plan:
+    if: inputs.action == 'plan'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: account-level/cloudfront-ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.GHA_PLAN_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Build Terraform variables
+        env:
+          AWS_REGION_VALUE: ${{ vars.AWS_REGION }}
+          PROJECT_NAME_VALUE: ${{ vars.PROJECT_NAME }}
+          UI_BUCKET_NAME: ${{ inputs.ui_bucket_name }}
+          CLOUDFRONT_ALIASES_JSON: ${{ inputs.cloudfront_aliases_json }}
+          ACM_CERTIFICATE_ARN: ${{ inputs.acm_certificate_arn }}
+          CREATE_ROUTE53_RECORDS: ${{ inputs.create_route53_records }}
+          ROUTE53_ZONE_ID: ${{ inputs.route53_zone_id }}
+          ENGOPS_API_ORIGIN_DOMAIN_NAME: ${{ inputs.engops_api_origin_domain_name }}
+          ENGOPS_API_ORIGIN_PROTOCOL_POLICY: ${{ inputs.engops_api_origin_protocol_policy }}
+          UPLOAD_PLACEHOLDER_INDEX: ${{ inputs.upload_placeholder_index }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          def env(name, default=""):
+              return os.environ.get(name, default)
+
+          aliases = json.loads(env("CLOUDFRONT_ALIASES_JSON", "[]"))
+          if not isinstance(aliases, list) or not all(isinstance(value, str) for value in aliases):
+              raise SystemExit("cloudfront_aliases_json must be a JSON array of strings")
+
+          values = {
+              "aws_region": env("AWS_REGION_VALUE", "ap-northeast-1") or "ap-northeast-1",
+              "project_name": env("PROJECT_NAME_VALUE", "platform") or "platform",
+              "ui_bucket_name": env("UI_BUCKET_NAME"),
+              "cloudfront_aliases": aliases,
+              "acm_certificate_arn": env("ACM_CERTIFICATE_ARN"),
+              "create_route53_records": env("CREATE_ROUTE53_RECORDS").lower() == "true",
+              "route53_zone_id": env("ROUTE53_ZONE_ID"),
+              "engops_api_origin_domain_name": env("ENGOPS_API_ORIGIN_DOMAIN_NAME"),
+              "engops_api_origin_protocol_policy": env("ENGOPS_API_ORIGIN_PROTOCOL_POLICY", "https-only") or "https-only",
+              "upload_placeholder_index": env("UPLOAD_PLACEHOLDER_INDEX").lower() == "true",
+          }
+
+          Path("workflow.auto.tfvars.json").write_text(
+              json.dumps(values, indent=2, sort_keys=True),
+              encoding="utf-8",
+          )
+          PY
+
+      - run: terraform fmt -check
+      - run: terraform init
+      - run: terraform validate
+      - run: terraform plan -no-color
+
+  apply:
+    if: inputs.action == 'apply'
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: account-level/cloudfront-ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.GHA_APPLY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Build Terraform variables
+        env:
+          AWS_REGION_VALUE: ${{ vars.AWS_REGION }}
+          PROJECT_NAME_VALUE: ${{ vars.PROJECT_NAME }}
+          UI_BUCKET_NAME: ${{ inputs.ui_bucket_name }}
+          CLOUDFRONT_ALIASES_JSON: ${{ inputs.cloudfront_aliases_json }}
+          ACM_CERTIFICATE_ARN: ${{ inputs.acm_certificate_arn }}
+          CREATE_ROUTE53_RECORDS: ${{ inputs.create_route53_records }}
+          ROUTE53_ZONE_ID: ${{ inputs.route53_zone_id }}
+          ENGOPS_API_ORIGIN_DOMAIN_NAME: ${{ inputs.engops_api_origin_domain_name }}
+          ENGOPS_API_ORIGIN_PROTOCOL_POLICY: ${{ inputs.engops_api_origin_protocol_policy }}
+          UPLOAD_PLACEHOLDER_INDEX: ${{ inputs.upload_placeholder_index }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          def env(name, default=""):
+              return os.environ.get(name, default)
+
+          aliases = json.loads(env("CLOUDFRONT_ALIASES_JSON", "[]"))
+          if not isinstance(aliases, list) or not all(isinstance(value, str) for value in aliases):
+              raise SystemExit("cloudfront_aliases_json must be a JSON array of strings")
+
+          values = {
+              "aws_region": env("AWS_REGION_VALUE", "ap-northeast-1") or "ap-northeast-1",
+              "project_name": env("PROJECT_NAME_VALUE", "platform") or "platform",
+              "ui_bucket_name": env("UI_BUCKET_NAME"),
+              "cloudfront_aliases": aliases,
+              "acm_certificate_arn": env("ACM_CERTIFICATE_ARN"),
+              "create_route53_records": env("CREATE_ROUTE53_RECORDS").lower() == "true",
+              "route53_zone_id": env("ROUTE53_ZONE_ID"),
+              "engops_api_origin_domain_name": env("ENGOPS_API_ORIGIN_DOMAIN_NAME"),
+              "engops_api_origin_protocol_policy": env("ENGOPS_API_ORIGIN_PROTOCOL_POLICY", "https-only") or "https-only",
+              "upload_placeholder_index": env("UPLOAD_PLACEHOLDER_INDEX").lower() == "true",
+          }
+
+          Path("workflow.auto.tfvars.json").write_text(
+              json.dumps(values, indent=2, sort_keys=True),
+              encoding="utf-8",
+          )
+          PY
+
+      - run: terraform fmt -check
+      - run: terraform init
+      - run: terraform validate
+      - run: terraform plan -no-color -out=tfplan
+      - run: terraform apply -auto-approve tfplan
+      - run: terraform output
