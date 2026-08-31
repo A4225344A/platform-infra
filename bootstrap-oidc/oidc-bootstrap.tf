@@ -170,6 +170,33 @@ resource "aws_iam_role_policy" "gha_apply_backup_lambda_iam" {
   })
 }
 
+# W3:main state also owns the LiteLLM Bedrock IAM user/access key/policy.
+# Terraform refreshes these during plan/apply, so gha_apply needs a second
+# narrow IAM exception in addition to node role and backup Lambda role access.
+resource "aws_iam_role_policy" "gha_apply_litellm_bedrock_iam" {
+  name = "${var.project_name}-gha-apply-litellm-bedrock-iam"
+  role = aws_iam_role.gha_apply.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ManageLiteLLMBedrockUser"
+        Effect = "Allow"
+        Action = [
+          "iam:Get*", "iam:List*",
+          "iam:CreateUser", "iam:DeleteUser", "iam:TagUser", "iam:UntagUser",
+          "iam:CreateAccessKey", "iam:DeleteAccessKey", "iam:UpdateAccessKey",
+          "iam:PutUserPolicy", "iam:DeleteUserPolicy"
+        ]
+        Resource = [
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/service/${var.project_name}-litellm-bedrock",
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/${var.project_name}-litellm-bedrock"
+        ]
+      }
+    ]
+  })
+}
+
 # ── 給 platform-app repo 推 ECR 用(image 備援,GHCR 為主、ECR 為備)──
 # 範圍刻意跟 gha_apply 分開:只准對這一個 ECR repo 推 image,不掛任何
 # VPC/IAM/Budget/SSM 權限——這個角色的職責只有「推 image 到 ECR」。
