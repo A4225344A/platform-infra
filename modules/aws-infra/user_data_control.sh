@@ -7,6 +7,13 @@ PROJECT="${PROJECT_NAME}"
 GWAPI_VERSION=v1.3.0
 CILIUM_VERSION=1.17.6
 
+IMDS_TOKEN=$(curl -sS -X PUT "http://169.254.169.254/latest/api/token" \
+  -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+INSTANCE_ID=$(curl -sS -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" \
+  http://169.254.169.254/latest/meta-data/instance-id)
+AZ=$(curl -sS -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" \
+  http://169.254.169.254/latest/meta-data/placement/availability-zone)
+
 # 外部下載(GitHub/dl.k8s.io release CDN)偶爾會單次瞬斷,曾經在實測中讓
 # 整個 user_data 死在下載這一步(hash 檔案抓得到、幾十 MB 的 binary 抓不到)。
 # set -e 底下一次失敗就整份腳本中止,補上重試比人工進 Session Manager 手動接續划算。
@@ -36,7 +43,10 @@ install_k3s() {
     --disable-network-policy \
     --disable-kube-proxy \
     --disable=traefik \
-    --disable=servicelb" sh -
+    --disable=servicelb \
+    --kubelet-arg=provider-id=aws:///$${AZ}/$${INSTANCE_ID} \
+    --node-label=topology.kubernetes.io/region=$${REGION} \
+    --node-label=topology.kubernetes.io/zone=$${AZ}" sh -
 }
 retry install_k3s
 
