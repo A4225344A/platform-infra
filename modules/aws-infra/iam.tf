@@ -109,6 +109,36 @@ resource "aws_iam_role_policy" "cluster_autoscaler" {
   })
 }
 
+resource "aws_iam_role_policy" "otel_cloudwatch_logs" {
+  name = "${var.project_name}-otel-cloudwatch-logs"
+  role = aws_iam_role.node.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "WriteW3CloudWatchLogGroups"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/w3/*"
+      },
+      {
+        Sid    = "WriteW3CloudWatchLogStreams"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/w3/*:log-stream:*"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_user" "litellm_bedrock" {
   name = "${var.project_name}-litellm-bedrock"
   path = "/service/"
