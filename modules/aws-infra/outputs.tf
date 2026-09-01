@@ -34,3 +34,16 @@ output "litellm_bedrock_secret_access_key" {
   value     = aws_iam_access_key.litellm_bedrock.secret
   sensitive = true
 }
+output "ai_agent_ses_user_name" {
+  value = aws_iam_user.ai_agent_ses.name
+}
+output "ai_agent_ses_identity_arn" {
+  value = aws_ses_email_identity.alert_sender.arn
+}
+output "ai_agent_ses_access_key_id" {
+  value = aws_iam_access_key.ai_agent_ses.id
+}
+output "ai_agent_ses_secret_access_key" {
+  value     = aws_iam_access_key.ai_agent_ses.secret
+  sensitive = true
+}

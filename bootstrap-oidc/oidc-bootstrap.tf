@@ -197,6 +197,33 @@ resource "aws_iam_role_policy" "gha_apply_litellm_bedrock_iam" {
   })
 }
 
+# W3 task 11 follow-up:main state also owns a scoped SES IAM user/access key
+# for ai-agent notifications. PowerUserAccess excludes IAM, so gha_apply needs
+# a narrow exception for this one service user.
+resource "aws_iam_role_policy" "gha_apply_ai_agent_ses_iam" {
+  name = "${var.project_name}-gha-apply-ai-agent-ses-iam"
+  role = aws_iam_role.gha_apply.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ManageAiAgentSesUser"
+        Effect = "Allow"
+        Action = [
+          "iam:Get*", "iam:List*",
+          "iam:CreateUser", "iam:DeleteUser", "iam:TagUser", "iam:UntagUser",
+          "iam:CreateAccessKey", "iam:DeleteAccessKey", "iam:UpdateAccessKey",
+          "iam:PutUserPolicy", "iam:DeleteUserPolicy"
+        ]
+        Resource = [
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/service/${var.project_name}-ai-agent-ses",
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/${var.project_name}-ai-agent-ses"
+        ]
+      }
+    ]
+  })
+}
+
 # ── 給 platform-app repo 推 ECR 用(image 備援,GHCR 為主、ECR 為備)──
 # 範圍刻意跟 gha_apply 分開:只准對這一個 ECR repo 推 image,不掛任何
 # VPC/IAM/Budget/SSM 權限——這個角色的職責只有「推 image 到 ECR」。

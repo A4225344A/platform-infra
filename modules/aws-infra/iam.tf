@@ -52,12 +52,6 @@ resource "aws_iam_role_policy" "node_ai" {
         ]
       },
       {
-        Sid      = "SesSendAlerts"
-        Effect   = "Allow"
-        Action   = ["ses:SendEmail", "ses:SendRawEmail"]
-        Resource = "*"
-      },
-      {
         Sid      = "ReadPlatformParameters"
         Effect   = "Allow"
         Action   = ["ssm:GetParameter", "ssm:GetParameters"]

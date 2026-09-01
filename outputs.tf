@@ -18,3 +18,16 @@ output "litellm_bedrock_secret_access_key" {
   value     = module.infra.litellm_bedrock_secret_access_key
   sensitive = true
 }
+output "ai_agent_ses_user_name" {
+  value = module.infra.ai_agent_ses_user_name
+}
+output "ai_agent_ses_identity_arn" {
+  value = module.infra.ai_agent_ses_identity_arn
+}
+output "ai_agent_ses_access_key_id" {
+  value = module.infra.ai_agent_ses_access_key_id
+}
+output "ai_agent_ses_secret_access_key" {
+  value     = module.infra.ai_agent_ses_secret_access_key
+  sensitive = true
+}
