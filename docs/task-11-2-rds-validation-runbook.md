@@ -12,13 +12,10 @@ The validation checks:
 - RDS snapshot backup Lambda state
 - Recent manual snapshots
 - Backup S3 bucket visibility
-- Kubernetes Secret key presence without printing values
-- `ai-agent` `PGHOST` wiring to the RDS endpoint
-- pgvector availability through an in-cluster connection
 
 ## Standard Command
 
-Run from the EC2 control node:
+Run from CloudShell / management shell:
 
 ```bash
 cd ~/platform-infra
@@ -41,7 +38,7 @@ bash scripts/validate-task-11-2-rds.sh
 The final line should be:
 
 ```text
-PASS: RDS PostgreSQL is available, private, encrypted, backed up, and reachable from ai-agent without printing secrets.
+PASS: AWS/RDS layer is available, private, encrypted, and backed up.
 ```
 
 Expected RDS properties:
@@ -53,7 +50,18 @@ storage_encrypted=true
 publicly_accessible=false
 ```
 
-Expected Kubernetes runtime check:
+## Kubernetes Runtime Validation
+
+Run the Kubernetes runtime layer separately from the EC2 control node, where
+`kubectl` is already connected to K3s:
+
+```bash
+cd ~/platform-gitops
+git pull --ff-only
+bash scripts/validate-task-11-2-k8s-runtime.sh
+```
+
+Expected Kubernetes runtime result:
 
 ```text
 REQUIRED_SECRETS_LOADED
@@ -67,8 +75,8 @@ the application requires vector columns in that database.
 
 ## Security Notes
 
-The script does not print secret values. It prints only key names and runtime
-boolean checks.
+The CloudShell AWS/RDS script does not read or print Kubernetes Secret values.
+The EC2 runtime script prints only Secret key names and boolean/runtime checks.
 
 Do not run:
 
