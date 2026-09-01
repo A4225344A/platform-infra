@@ -3,7 +3,13 @@ on:
   push:
     branches: [main]
     paths: ["modules/**", "*.tf"]
-  workflow_dispatch: {}   # GitHub 網頁上手動按按鈕觸發
+  workflow_dispatch:
+    inputs:
+      tf_targets:
+        description: "Optional Terraform target addresses, separated by spaces, commas, or new lines."
+        required: false
+        default: ""
+        type: string
 
 permissions:
   id-token: write
@@ -12,7 +18,7 @@ permissions:
 jobs:
   apply:
     runs-on: ubuntu-latest
-    environment: production   
+    environment: production
     steps:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4
@@ -23,5 +29,26 @@ jobs:
         with:
           terraform_wrapper: false
       - run: terraform init
-      - run: terraform plan -no-color -var="alert_email=${{ vars.ALERT_EMAIL }}" -out=tfplan
+      - name: Build Terraform target args
+        env:
+          TF_TARGETS: ${{ github.event.inputs.tf_targets || '' }}
+        run: |
+          python - <<'PY' > tf-target-args.txt
+          import os
+          import re
+
+          targets = [
+              value.strip()
+              for value in re.split(r"[\s,]+", os.environ.get("TF_TARGETS", ""))
+              if value.strip()
+          ]
+          for target in targets:
+              if not re.fullmatch(r"[A-Za-z0-9_.\-[\]\"/]+", target):
+                  raise SystemExit(f"invalid terraform target: {target}")
+              print(f"-target={target}")
+          PY
+      - name: Terraform plan
+        run: |
+          mapfile -t TARGET_ARGS < tf-target-args.txt
+          terraform plan -no-color -var="alert_email=${{ vars.ALERT_EMAIL }}" "${TARGET_ARGS[@]}" -out=tfplan
       - run: terraform apply -auto-approve tfplan

@@ -1,6 +1,12 @@
 name: Terraform Plan
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      tf_targets:
+        description: "Optional Terraform target addresses, separated by spaces, commas, or new lines."
+        required: false
+        default: ""
+        type: string
   pull_request:
     paths: ["modules/**", "*.tf"]
 
@@ -22,7 +28,28 @@ jobs:
         with:
           terraform_wrapper: false
       - run: terraform init
-      - run: terraform plan -no-color -var="alert_email=${{ vars.ALERT_EMAIL }}" | tee plan.txt
+      - name: Build Terraform target args
+        env:
+          TF_TARGETS: ${{ github.event.inputs.tf_targets || '' }}
+        run: |
+          python - <<'PY' > tf-target-args.txt
+          import os
+          import re
+
+          targets = [
+              value.strip()
+              for value in re.split(r"[\s,]+", os.environ.get("TF_TARGETS", ""))
+              if value.strip()
+          ]
+          for target in targets:
+              if not re.fullmatch(r"[A-Za-z0-9_.\-[\]\"/]+", target):
+                  raise SystemExit(f"invalid terraform target: {target}")
+              print(f"-target={target}")
+          PY
+      - name: Terraform plan
+        run: |
+          mapfile -t TARGET_ARGS < tf-target-args.txt
+          terraform plan -no-color -var="alert_email=${{ vars.ALERT_EMAIL }}" "${TARGET_ARGS[@]}" | tee plan.txt
       - uses: actions/github-script@v7
         if: github.event_name == 'pull_request'
         with:
