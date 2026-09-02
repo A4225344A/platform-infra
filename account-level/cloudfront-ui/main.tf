@@ -154,6 +154,11 @@ resource "aws_cloudfront_distribution" "ui" {
         origin_protocol_policy = var.engops_api_origin_protocol_policy
         origin_ssl_protocols   = ["TLSv1.2"]
       }
+
+      custom_header {
+        name  = var.engops_api_origin_verify_header_name
+        value = var.engops_api_origin_verify_header_value
+      }
     }
   }
 
@@ -208,6 +213,11 @@ resource "aws_cloudfront_distribution" "ui" {
     precondition {
       condition     = !var.create_route53_records || (local.has_aliases && var.route53_zone_id != "")
       error_message = "route53_zone_id and cloudfront_aliases are required when create_route53_records is true."
+    }
+
+    precondition {
+      condition     = !local.has_api_origin || var.engops_api_origin_verify_header_value != ""
+      error_message = "engops_api_origin_verify_header_value is required when engops_api_origin_domain_name is set."
     }
   }
 }

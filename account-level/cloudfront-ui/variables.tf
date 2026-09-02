@@ -49,6 +49,19 @@ variable "engops_api_origin_protocol_policy" {
   }
 }
 
+variable "engops_api_origin_verify_header_name" {
+  type        = string
+  default     = "X-EngOps-Origin-Verify"
+  description = "Custom header CloudFront adds when forwarding /api/* requests to the EngOps API origin."
+}
+
+variable "engops_api_origin_verify_header_value" {
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "Secret custom header value CloudFront adds when forwarding /api/* requests. Required when engops_api_origin_domain_name is set."
+}
+
 variable "create_route53_records" {
   type        = bool
   default     = false

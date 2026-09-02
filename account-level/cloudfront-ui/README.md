@@ -39,7 +39,10 @@ engops_api_origin_domain_name: leave empty
 upload_placeholder_index: true
 ```
 
-The workflow always runs `plan` first. After the plan job succeeds, the `apply` job waits for approval on the `production` environment and then applies the saved `tfplan`.
+The workflow always runs `plan` first. After the plan job succeeds, the `apply`
+job waits for approval on the `production` environment and then runs apply with
+the same workflow inputs and GitHub secrets. It intentionally does not upload a
+saved `tfplan` artifact because API origin custom headers are sensitive.
 
 The plan job uses the plan role. The apply job uses the apply role after manual approval.
 
@@ -62,6 +65,13 @@ Set this only after `engops-api` has a stable external origin.
 engops_api_origin_domain_name     = "example-alb.ap-northeast-1.elb.amazonaws.com"
 engops_api_origin_protocol_policy = "https-only"
 ```
+
+When API routing is enabled, set the GitHub Actions secret
+`ENGOPS_API_ORIGIN_VERIFY_TOKEN` to the same value loaded by the `engops-api`
+deployment as `ENGOPS_API_ORIGIN_VERIFY_TOKEN`. CloudFront adds it as
+`X-EngOps-Origin-Verify` when forwarding `/api/*` requests, and the backend
+rejects direct-origin requests without that header or the internal machine
+Bearer token.
 
 If the Gateway/ALB only supports HTTP internally, set:
 
@@ -103,3 +113,5 @@ Expected:
 - Request reaches the API origin.
 - Do not count a distribution status of `Deployed` as sufficient validation. Test `/` and `/api/*` paths separately.
 - Disallowed API methods must remain errors. For example, `POST /api/v1/approvals` should return `403` or `405`, not the UI `index.html`.
+- Direct requests to the origin without `X-EngOps-Origin-Verify` or the
+  internal Bearer token must return `403`.

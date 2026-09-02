@@ -81,6 +81,7 @@ jobs:
           ROUTE53_ZONE_ID: ${{ inputs.route53_zone_id }}
           ENGOPS_API_ORIGIN_DOMAIN_NAME: ${{ inputs.engops_api_origin_domain_name }}
           ENGOPS_API_ORIGIN_PROTOCOL_POLICY: ${{ inputs.engops_api_origin_protocol_policy }}
+          ENGOPS_API_ORIGIN_VERIFY_TOKEN: ${{ secrets.ENGOPS_API_ORIGIN_VERIFY_TOKEN }}
           UPLOAD_PLACEHOLDER_INDEX: ${{ inputs.upload_placeholder_index }}
         run: |
           python - <<'PY'
@@ -105,6 +106,7 @@ jobs:
               "route53_zone_id": env("ROUTE53_ZONE_ID"),
               "engops_api_origin_domain_name": env("ENGOPS_API_ORIGIN_DOMAIN_NAME"),
               "engops_api_origin_protocol_policy": env("ENGOPS_API_ORIGIN_PROTOCOL_POLICY", "https-only") or "https-only",
+              "engops_api_origin_verify_header_value": env("ENGOPS_API_ORIGIN_VERIFY_TOKEN"),
               "upload_placeholder_index": env("UPLOAD_PLACEHOLDER_INDEX").lower() == "true",
           }
 
@@ -117,15 +119,7 @@ jobs:
       - run: terraform fmt -check
       - run: terraform init
       - run: terraform validate
-      - run: terraform plan -no-color -out=tfplan
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cloudfront-ui-tfplan
-          path: |
-            account-level/cloudfront-ui/tfplan
-            account-level/cloudfront-ui/workflow.auto.tfvars.json
-          retention-days: 1
+      - run: terraform plan -no-color
 
   apply:
     needs: plan
@@ -137,11 +131,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: cloudfront-ui-tfplan
-          path: account-level/cloudfront-ui
-
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.GHA_APPLY_ROLE_ARN }}
@@ -151,6 +140,52 @@ jobs:
         with:
           terraform_wrapper: false
 
+      - name: Build Terraform variables
+        env:
+          AWS_REGION_VALUE: ${{ vars.AWS_REGION }}
+          PROJECT_NAME_VALUE: ${{ vars.PROJECT_NAME }}
+          UI_BUCKET_NAME: ${{ inputs.ui_bucket_name }}
+          CLOUDFRONT_ALIASES_JSON: ${{ inputs.cloudfront_aliases_json }}
+          ACM_CERTIFICATE_ARN: ${{ inputs.acm_certificate_arn }}
+          CREATE_ROUTE53_RECORDS: ${{ inputs.create_route53_records }}
+          ROUTE53_ZONE_ID: ${{ inputs.route53_zone_id }}
+          ENGOPS_API_ORIGIN_DOMAIN_NAME: ${{ inputs.engops_api_origin_domain_name }}
+          ENGOPS_API_ORIGIN_PROTOCOL_POLICY: ${{ inputs.engops_api_origin_protocol_policy }}
+          ENGOPS_API_ORIGIN_VERIFY_TOKEN: ${{ secrets.ENGOPS_API_ORIGIN_VERIFY_TOKEN }}
+          UPLOAD_PLACEHOLDER_INDEX: ${{ inputs.upload_placeholder_index }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          def env(name, default=""):
+              return os.environ.get(name, default)
+
+          aliases = json.loads(env("CLOUDFRONT_ALIASES_JSON", "[]"))
+          if not isinstance(aliases, list) or not all(isinstance(value, str) for value in aliases):
+              raise SystemExit("cloudfront_aliases_json must be a JSON array of strings")
+
+          values = {
+              "aws_region": env("AWS_REGION_VALUE", "ap-northeast-1") or "ap-northeast-1",
+              "project_name": env("PROJECT_NAME_VALUE", "platform") or "platform",
+              "ui_bucket_name": env("UI_BUCKET_NAME"),
+              "cloudfront_aliases": aliases,
+              "acm_certificate_arn": env("ACM_CERTIFICATE_ARN"),
+              "create_route53_records": env("CREATE_ROUTE53_RECORDS").lower() == "true",
+              "route53_zone_id": env("ROUTE53_ZONE_ID"),
+              "engops_api_origin_domain_name": env("ENGOPS_API_ORIGIN_DOMAIN_NAME"),
+              "engops_api_origin_protocol_policy": env("ENGOPS_API_ORIGIN_PROTOCOL_POLICY", "https-only") or "https-only",
+              "engops_api_origin_verify_header_value": env("ENGOPS_API_ORIGIN_VERIFY_TOKEN"),
+              "upload_placeholder_index": env("UPLOAD_PLACEHOLDER_INDEX").lower() == "true",
+          }
+
+          Path("workflow.auto.tfvars.json").write_text(
+              json.dumps(values, indent=2, sort_keys=True),
+              encoding="utf-8",
+          )
+          PY
+
       - run: terraform init
-      - run: terraform apply -auto-approve tfplan
+      - run: terraform apply -auto-approve
       - run: terraform output
