@@ -4,7 +4,7 @@ data "aws_ec2_managed_prefix_list" "cloudfront_origin_facing" {
 
 resource "aws_security_group" "web" {
   name        = "${var.project_name}-web-sg"
-  description = "HTTP/HTTPS from CloudFront; no SSH (SSM)"
+  description = "HTTP/HTTPS; no SSH (SSM)"
   vpc_id      = aws_vpc.main.id
   tags        = { Name = "${var.project_name}-web-sg" }
 }
