@@ -90,6 +90,7 @@ Expected:
 
 - CloudFront URL returns `200` or `304` with CloudFront headers.
 - Direct S3 URL returns `403 Forbidden`.
+- UI deep links are handled by a CloudFront Function viewer-request rewrite, not by global 403/404 error mapping. This keeps `/api/*` errors from being masked as `index.html`.
 
 If `engops_api_origin_domain_name` is set:
 
@@ -101,3 +102,4 @@ Expected:
 
 - Request reaches the API origin.
 - Do not count a distribution status of `Deployed` as sufficient validation. Test `/` and `/api/*` paths separately.
+- Disallowed API methods must remain errors. For example, `POST /api/v1/approvals` should return `403` or `405`, not the UI `index.html`.

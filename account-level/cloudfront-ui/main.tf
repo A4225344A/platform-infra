@@ -99,6 +99,30 @@ resource "aws_cloudfront_origin_access_control" "ui" {
   signing_protocol                  = "sigv4"
 }
 
+resource "aws_cloudfront_function" "spa_rewrite" {
+  name    = "${var.project_name}-engops-ui-spa-rewrite"
+  runtime = "cloudfront-js-2.0"
+  comment = "Rewrite EngOps UI deep links to index.html without masking API errors."
+  publish = true
+  code    = <<-JS
+    function handler(event) {
+      var request = event.request;
+      var uri = request.uri;
+
+      if (uri === "/api" || uri.indexOf("/api/") === 0) {
+        return request;
+      }
+
+      var lastSegment = uri.split("/").pop();
+      if (uri === "/" || lastSegment.indexOf(".") === -1) {
+        request.uri = "/index.html";
+      }
+
+      return request;
+    }
+  JS
+}
+
 resource "aws_cloudfront_distribution" "ui" {
   enabled             = true
   is_ipv6_enabled     = true
@@ -140,6 +164,11 @@ resource "aws_cloudfront_distribution" "ui" {
     cached_methods         = ["GET", "HEAD"]
     cache_policy_id        = data.aws_cloudfront_cache_policy.caching_optimized.id
     compress               = true
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.spa_rewrite.arn
+    }
   }
 
   dynamic "ordered_cache_behavior" {
@@ -155,18 +184,6 @@ resource "aws_cloudfront_distribution" "ui" {
       origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header.id
       compress                 = true
     }
-  }
-
-  custom_error_response {
-    error_code         = 403
-    response_code      = 200
-    response_page_path = "/index.html"
-  }
-
-  custom_error_response {
-    error_code         = 404
-    response_code      = 200
-    response_page_path = "/index.html"
   }
 
   restrictions {
