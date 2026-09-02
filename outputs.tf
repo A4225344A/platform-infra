@@ -6,6 +6,7 @@ output "node_security_group_id" { value = module.infra.node_security_group_id }
 output "registry_url" { value = module.infra.registry_url }
 output "node_instance_profile" { value = module.infra.node_instance_profile }
 output "control_public_ip" { value = module.infra.control_public_ip }
+output "control_public_dns" { value = module.infra.control_public_dns }
 output "control_private_ip" { value = module.infra.control_private_ip }
 output "worker_asg_name" { value = module.infra.worker_asg_name }
 output "postgres_endpoint" { value = module.infra.postgres_endpoint }

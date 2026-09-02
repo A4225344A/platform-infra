@@ -149,7 +149,7 @@ resource "aws_cloudfront_distribution" "ui" {
       path_pattern             = "/api/*"
       target_origin_id         = local.engops_api_origin_id
       viewer_protocol_policy   = "https-only"
-      allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+      allowed_methods          = ["GET", "HEAD", "OPTIONS"]
       cached_methods           = ["GET", "HEAD", "OPTIONS"]
       cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
       origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header.id
