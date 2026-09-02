@@ -76,7 +76,11 @@ resource "aws_instance" "control" {
     AWS_REGION   = var.aws_region
     PROJECT_NAME = var.project_name
   })
+  lifecycle {
+    ignore_changes = [ami]
+  }
 }
+
 resource "aws_launch_template" "worker" {
   name_prefix            = "${var.project_name}-worker-"
   image_id               = data.aws_ami.al2023.id
@@ -102,6 +106,9 @@ resource "aws_launch_template" "worker" {
     PROJECT_NAME       = var.project_name
     CONTROL_PRIVATE_IP = aws_instance.control.private_ip # 建立隱含的建立順序依賴:worker 必須等 control 先建
   }))
+  lifecycle {
+    ignore_changes = [image_id]
+  }
 }
 
 resource "aws_autoscaling_group" "worker" {
