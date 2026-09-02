@@ -16,6 +16,10 @@ data "aws_dynamodb_table" "tflock" {
 
 data "aws_caller_identity" "current" {}
 
+locals {
+  ui_bucket_name = var.ui_bucket_name != "" ? var.ui_bucket_name : "${var.project_name}-engops-ui-${data.aws_caller_identity.current.account_id}"
+}
+
 resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
@@ -237,8 +241,13 @@ resource "aws_iam_role" "gha_app_deploy" {
       Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
-        # 注意這裡信任的是 app_repo_name(platform-app),不是 infra_repo_name(platform-infra)
-        StringLike = { "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}*/${var.app_repo_name}*:ref:refs/heads/main*" }
+        # This role is for deployable app artifacts, not Terraform changes.
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = [
+            "repo:${var.github_org}*/${var.app_repo_name}*:ref:refs/heads/main*",
+            "repo:${var.github_org}*/${var.ui_repo_name}*:ref:refs/heads/main*"
+          ]
+        }
       }
     }]
   })
@@ -265,6 +274,45 @@ resource "aws_iam_role_policy" "gha_app_deploy_ecr_push" {
           "ecr:CompleteLayerUpload", "ecr:PutImage"
         ]
         Resource = "arn:aws:ecr:${var.aws_region}:${data.aws_caller_identity.current.account_id}:repository/${var.project_name}-service"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "gha_app_deploy_engops_ui" {
+  name = "${var.project_name}-gha-app-deploy-engops-ui"
+  role = aws_iam_role.gha_app_deploy.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ListUiBucket"
+        Effect = "Allow"
+        Action = [
+          "s3:GetBucketLocation",
+          "s3:ListBucket"
+        ]
+        Resource = "arn:aws:s3:::${local.ui_bucket_name}"
+      },
+      {
+        Sid    = "PublishUiObjects"
+        Effect = "Allow"
+        Action = [
+          "s3:DeleteObject",
+          "s3:GetObject",
+          "s3:PutObject"
+        ]
+        Resource = "arn:aws:s3:::${local.ui_bucket_name}/*"
+      },
+      {
+        Sid    = "InvalidateUiDistribution"
+        Effect = "Allow"
+        Action = [
+          "cloudfront:CreateInvalidation",
+          "cloudfront:GetDistribution",
+          "cloudfront:GetInvalidation"
+        ]
+        Resource = "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${var.cloudfront_ui_distribution_id}"
       }
     ]
   })

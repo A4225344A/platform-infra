@@ -24,3 +24,20 @@ variable "app_repo_name" {
   type    = string
   default = "platform-app"
 }
+
+variable "ui_repo_name" {
+  type    = string
+  default = "platform-ui"
+}
+
+variable "cloudfront_ui_distribution_id" {
+  type        = string
+  default     = "E1VMEDDXP35S53"
+  description = "CloudFront distribution ID for the EngOps UI deployment workflow."
+}
+
+variable "ui_bucket_name" {
+  type        = string
+  default     = ""
+  description = "S3 bucket used by the EngOps UI deployment workflow. Defaults to <project>-engops-ui-<account-id>."
+}
