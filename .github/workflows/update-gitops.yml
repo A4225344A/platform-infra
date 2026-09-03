@@ -20,7 +20,9 @@ jobs:
             exit 1
           fi
 
-          git clone "https://x-access-token:${{ secrets.GITOPS_TOKEN }}@github.com/${{ vars.GITOPS_REPO || 'A4225344A/platform-gitops' }}.git"
+          # GITOPS_REPO 沒設 repo variable 時,預設用同一個 GitHub 帳號底下的
+          # platform-gitops(跟這份 repo 同 owner),讓 fork 的人不用先設變數就能跑。
+          git clone "https://x-access-token:${{ secrets.GITOPS_TOKEN }}@github.com/${{ vars.GITOPS_REPO || format('{0}/platform-gitops', github.repository_owner) }}.git"
           cd platform-gitops
           # ⚠️ 必要:runner 的 git 沒有預設身分,少了這兩行 git commit 會直接失敗
           git config user.name  "github-actions[bot]"
