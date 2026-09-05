@@ -48,3 +48,6 @@ output "ai_agent_ses_secret_access_key" {
   value     = aws_iam_access_key.ai_agent_ses.secret
   sensitive = true
 }
+output "ai_agent_alerts_topic_arn" {
+  value = aws_sns_topic.ai_agent_alerts.arn
+}

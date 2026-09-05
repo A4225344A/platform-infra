@@ -32,3 +32,6 @@ output "ai_agent_ses_secret_access_key" {
   value     = module.infra.ai_agent_ses_secret_access_key
   sensitive = true
 }
+output "ai_agent_alerts_topic_arn" {
+  value = module.infra.ai_agent_alerts_topic_arn
+}
