@@ -48,8 +48,9 @@ data "aws_ami" "al2023" {
   most_recent = true
   owners      = ["amazon"]
   filter {
-    name   = "name"
-    values = ["al2023-ami-*-x86_64"]
+    name = "name"
+    # Match standard AL2023 images only; the broader wildcard also matches minimal.
+    values = ["al2023-ami-2023.*-kernel-*-x86_64"]
   }
 }
 
@@ -63,6 +64,10 @@ resource "aws_instance" "control" {
   subnet_id              = aws_subnet.public["a"].id
   vpc_security_group_ids = [aws_security_group.k3s.id, aws_security_group.web.id]
   iam_instance_profile   = aws_iam_instance_profile.node.name
+  root_block_device {
+    volume_size = 30
+    volume_type = "gp3"
+  }
   metadata_options {
     http_tokens = "required" # 強制 IMDSv2
     # W3:容器經 veth/bridge 會多一跳,hop=1 時 Pod 完全拿不到 IMDS 回應。
@@ -87,6 +92,15 @@ resource "aws_launch_template" "worker" {
   instance_type          = "t3.large" # W3:Presidio 的 spaCy en_core_web_lg 需 1–1.5GB 常駐,t3.small(2GB)放不下
   vpc_security_group_ids = [aws_security_group.k3s.id]
 
+  block_device_mappings {
+    device_name = data.aws_ami.al2023.root_device_name
+    ebs {
+      volume_size           = 30
+      volume_type           = "gp3"
+      delete_on_termination = true
+    }
+  }
+
   iam_instance_profile {
     name = aws_iam_instance_profile.node.name
   }
@@ -107,7 +121,7 @@ resource "aws_launch_template" "worker" {
     CONTROL_PRIVATE_IP = aws_instance.control.private_ip # 建立隱含的建立順序依賴:worker 必須等 control 先建
   }))
   lifecycle {
-    ignore_changes = [image_id]
+    create_before_destroy = true
   }
 }
 

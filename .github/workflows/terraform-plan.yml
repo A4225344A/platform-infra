@@ -7,6 +7,11 @@ on:
         required: false
         default: ""
         type: string
+      rebuild_compute:
+        description: "Replace the control instance for recovery (deletes its root disk; does not replace existing workers)."
+        required: false
+        default: false
+        type: boolean
   pull_request:
     paths: ["modules/**", "*.tf"]
 
@@ -31,6 +36,7 @@ jobs:
       - name: Build Terraform target args
         env:
           TF_TARGETS: ${{ github.event.inputs.tf_targets || '' }}
+          REBUILD_COMPUTE: ${{ github.event.inputs.rebuild_compute || 'false' }}
         run: |
           python - <<'PY' > tf-target-args.txt
           import os
@@ -45,6 +51,8 @@ jobs:
               if not re.fullmatch(r"[A-Za-z0-9_.\-[\]\"/]+", target):
                   raise SystemExit(f"invalid terraform target: {target}")
               print(f"-target={target}")
+          if os.environ.get("REBUILD_COMPUTE") == "true":
+              print("-replace=module.infra.aws_instance.control")
           PY
       - name: Terraform plan
         run: |
