@@ -1,8 +1,5 @@
 name: Terraform Apply
 on:
-  push:
-    branches: [main]
-    paths: ["modules/**", "*.tf"]
   workflow_dispatch:
     inputs:
       tf_targets:
